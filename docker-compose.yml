@@ -69,7 +69,7 @@ services:
       - shophub_network
 
   checkout-service:
-    image: sha2121/shophub-checkout:2
+    image: sha2121/shophub-checkout:3
     container_name: shophub_checkout
     restart: unless-stopped
     environment:

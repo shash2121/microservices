@@ -425,7 +425,9 @@ async function clearCart() {
 
 function showSuccessModal(order) {
   document.getElementById('orderId').textContent = order.orderId;
-  document.getElementById('orderTotal').textContent = `₹${order.pricing.total.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+  // Use the calculated INR total from checkoutSession if available, otherwise calculate from order
+  const totalINR = checkoutSession?.totalINR || order.pricing.total;
+  document.getElementById('orderTotal').textContent = `₹${totalINR.toLocaleString('en-IN')}`;
   successModal.classList.remove('hidden');
 
   // Store order for viewing

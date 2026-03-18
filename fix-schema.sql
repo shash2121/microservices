@@ -19,7 +19,7 @@ CREATE TABLE users (
 CREATE TABLE orders (
     order_id VARCHAR(36) PRIMARY KEY,
     user_id VARCHAR(36) NOT NULL,
-    status ENUM('pending', 'processing', 'completed', 'cancelled') DEFAULT 'completed',
+    status ENUM('pending', 'processing', 'completed', 'cancelled', 'confirmed') DEFAULT 'confirmed',
     subtotal DECIMAL(10, 2) NOT NULL,
     discount DECIMAL(10, 2) DEFAULT 0,
     discount_code VARCHAR(50),
@@ -47,11 +47,3 @@ CREATE TABLE order_items (
     INDEX idx_order_id (order_id),
     FOREIGN KEY (order_id) REFERENCES orders(order_id) ON DELETE CASCADE
 );
-
-USE shophub;
-ALTER TABLE orders DROP FOREIGN KEY orders_ibfk_1;
-ALTER TABLE orders DROP INDEX idx_user_id;
-ALTER TABLE orders ADD INDEX idx_user_id (user_id);
-
-
-ALTER TABLE orders MODIFY COLUMN status ENUM('pending', 'processing', 'completed', 'cancelled', 'confirmed') DEFAULT 'confirmed';
