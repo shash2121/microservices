@@ -13,7 +13,7 @@ services:
     ports:
       - "3306:3306"
     volumes:
-      - ./fix-schema.sql:/docker-entrypoint-initdb.d/schema.sql
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
       - mysql_data:/var/lib/mysql
     networks:
       - shophub_network
