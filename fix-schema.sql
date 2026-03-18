@@ -31,7 +31,7 @@ CREATE TABLE orders (
     total DECIMAL(10, 2) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_user_id (user_id),
-    INDEX idx_status (status),
+    INDEX idx_status (status)
 );
 
 -- Order items table - stores items in each order
