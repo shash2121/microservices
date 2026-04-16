@@ -234,9 +234,13 @@ router.get('/order/:orderId', async (req, res) => {
 // GET all orders for user
 router.get('/orders/:userId', async (req, res) => {
   const { userId } = req.params;
-  
+
+  console.log('Fetching orders for userId:', userId);
+
   try {
     const userOrders = await getOrdersByUserId(userId);
+
+    console.log('Orders found:', userOrders.length, userOrders);
 
     res.json({
       success: true,
@@ -248,6 +252,40 @@ router.get('/orders/:userId', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch orders'
+    });
+  }
+});
+
+// DEBUG: Get ALL orders (for debugging)
+router.get('/orders/debug', async (req, res) => {
+  const { getPool, isConnected } = require('../config/database');
+
+  try {
+    if (isConnected()) {
+      const pool = getPool();
+      const [rows] = await pool.query('SELECT * FROM orders ORDER BY created_at DESC');
+      res.json({
+        success: true,
+        dbConnected: true,
+        count: rows.length,
+        data: rows
+      });
+    } else {
+      // Return in-memory orders
+      const { orders } = require('../config/database');
+      const allOrders = Array.from(orders.values());
+      res.json({
+        success: true,
+        dbConnected: false,
+        count: allOrders.length,
+        data: allOrders
+      });
+    }
+  } catch (error) {
+    console.error('Debug error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });

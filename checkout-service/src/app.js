@@ -42,6 +42,11 @@ app.get('/', (req, res) => {
   res.sendFile('checkout.html', { root: 'public' });
 });
 
+// Orders page
+app.get('/orders', (req, res) => {
+  res.sendFile('orders.html', { root: 'public' });
+});
+
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({

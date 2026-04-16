@@ -23,6 +23,23 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: shophub_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - shophub_network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   landing-service:
     image: sha2121/shophub-landing-page:1
     container_name: shophub_landing
@@ -51,8 +68,13 @@ services:
     environment:
       PORT: 3001
       NODE_ENV: development
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     ports:
       - "3001:3001"
+    depends_on:
+      redis:
+        condition: service_healthy
     networks:
       - shophub_network
 
@@ -94,3 +116,4 @@ networks:
 
 volumes:
   mysql_data:
+  redis_data:

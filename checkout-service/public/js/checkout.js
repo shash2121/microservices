@@ -425,10 +425,14 @@ async function clearCart() {
 
 function showSuccessModal(order) {
   document.getElementById('orderId').textContent = order.orderId;
+  document.getElementById('orderUserId').textContent = USER_ID;
   // Use the calculated INR total from checkoutSession if available, otherwise calculate from order
   const totalINR = checkoutSession?.totalINR || order.pricing.total;
   document.getElementById('orderTotal').textContent = `₹${totalINR.toLocaleString('en-IN')}`;
   successModal.classList.remove('hidden');
+
+  // Set orders link with current userId
+  document.getElementById('viewAllOrdersLink').href = `/orders?userId=${USER_ID}`;
 
   // Store order for viewing
   window.lastOrder = order;

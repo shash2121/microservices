@@ -43,6 +43,7 @@ CREATE TABLE order_items (
     price DECIMAL(10, 2) NOT NULL,
     quantity INT NOT NULL,
     subtotal DECIMAL(10, 2) NOT NULL,
+    image VARCHAR(500),
     INDEX idx_order_id (order_id),
     FOREIGN KEY (order_id) REFERENCES orders(order_id) ON DELETE CASCADE
 );

@@ -57,6 +57,10 @@ function updateCartLink() {
   if (cartIcon) {
     cartIcon.href = `http://localhost:3002?userId=${USER_ID}`;
   }
+  const ordersLink = document.getElementById('ordersLink');
+  if (ordersLink) {
+    ordersLink.href = `http://localhost:3003/orders?userId=${USER_ID}`;
+  }
 }
 
 function setupEventListeners() {
@@ -191,7 +195,7 @@ function createProductCard(product) {
   const priceInINR = Math.round(product.price * 83);
 
   card.innerHTML = `
-    <img src="${product.image}" alt="${product.name}" class="product-image" onerror="this.src='https://via.placeholder.com/300x220?text=No+Image'">
+    <img src="${product.image}" alt="${product.name}" class="product-image" onerror="this.onerror=null;this.src='https://via.placeholder.com/300x220?text=No+Image';">
     <div class="product-info">
       <span class="product-category">${product.category}</span>
       <h3 class="product-name">${product.name}</h3>

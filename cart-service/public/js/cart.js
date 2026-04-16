@@ -39,6 +39,13 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log('localStorage keys:', Object.keys(localStorage));
   console.log('shophub_userId from storage:', localStorage.getItem('shophub_userId'));
   console.log('USER_ID being used:', USER_ID);
+
+  // Update orders link with userId
+  const ordersLink = document.getElementById('ordersLink');
+  if (ordersLink) {
+    ordersLink.href = `http://localhost:3003/orders?userId=${USER_ID}`;
+  }
+
   loadCart();
   setupEventListeners();
 });

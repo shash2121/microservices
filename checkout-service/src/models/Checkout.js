@@ -162,7 +162,8 @@ class CheckoutSession {
         name: item.name,
         price: item.price,
         quantity: item.quantity,
-        subtotal: item.subtotal
+        subtotal: item.subtotal,
+        image: item.image
       })),
       pricing: {
         subtotal: this.subtotal,

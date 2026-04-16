@@ -3,11 +3,23 @@ const express = require('express');
 const cors = require('cors');
 
 const productRoutes = require('./routes/products');
+const { cache } = require('./config/redis');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 console.log('Loading product routes...');
+
+async function connectRedis() {
+  try {
+    await cache.connect();
+    console.log('✅ Redis connected');
+  } catch (err) {
+    console.warn('⚠️ Redis connection failed, continuing without cache:', err.message);
+  }
+}
+
+connectRedis();
 
 // Middleware
 app.use(cors());
