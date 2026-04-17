@@ -1,18 +1,96 @@
 const express = require('express');
 const router = express.Router();
-const { CheckoutSession } = require('../models/Checkout');
+const { CheckoutSession, CheckoutItem } = require('../models/Checkout');
 const { getOrdersByUserId, getOrderWithItems } = require('../config/database');
-const EmailService = require('../services/EmailService');
+// const EmailService = require('../services/EmailService'); // removed as not used
+const { cache } = require('../config/redis');
 
-// In-memory checkout sessions storage (for active checkouts only)
-const checkoutSessions = new Map();
+const SESSION_TTL = 1800;
 
-const emailService = new EmailService();
+// const emailService = new EmailService(); // removed as EmailService not used
 
-// GET checkout session for user
-router.get('/session/:userId', (req, res) => {
+// These endpoints are now handled by landing-service for persistence.
+// We keep them as proxies or remove them to avoid confusion.
+// For now, we'll remove the cache-based implementation to use the persistent one in landing-service.
+
+
+function createSession(userId, data = null) {
+  const session = new CheckoutSession(userId);
+  if (data) {
+    session.id = data.id || session.id;
+    session.status = data.status || 'pending';
+    session.discount = data.discount || 0;
+    session.discountCode = data.discountCode || null;
+    session.shippingCost = data.shippingCost || 0;
+    session.shippingAddress = data.shippingAddress || null;
+    session.paymentMethod = data.paymentMethod || null;
+    session.paymentStatus = data.paymentStatus || 'pending';
+    session.createdAt = data.createdAt || session.createdAt;
+    session.updatedAt = data.updatedAt || session.updatedAt;
+    session.completedAt = data.completedAt || null;
+    
+    if (data.items && Array.isArray(data.items)) {
+      session.items = data.items.map(item => {
+        const checkoutItem = new CheckoutItem(
+          item.productId,
+          item.name,
+          item.price,
+          item.image,
+          item.quantity
+        );
+        checkoutItem.id = item.id;
+        return checkoutItem;
+      });
+    }
+  }
+  return session;
+}
+
+async function getSession(userId) {
+  const cached = await cache.get(`checkout:${userId}`);
+  if (cached) {
+    return createSession(userId, cached);
+  }
+  return null;
+}
+
+async function saveSession(userId, session) {
+  console.log('[checkout] Saving session to Redis key', `checkout:${userId}`);
+  const result = await cache.set(`checkout:${userId}`, {
+    id: session.id,
+    userId: session.userId,
+    items: session.items.map(item => ({
+      id: item.id,
+      productId: item.productId,
+      name: item.name,
+      price: item.price,
+      image: item.image,
+      quantity: item.quantity
+    })),
+    subtotal: session.subtotal,
+    discount: session.discount,
+    discountCode: session.discountCode,
+    tax: session.tax,
+    shippingCost: session.shippingCost,
+    total: session.total,
+    status: session.status,
+    shippingAddress: session.shippingAddress,
+    paymentMethod: session.paymentMethod,
+    paymentStatus: session.paymentStatus,
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
+    completedAt: session.completedAt
+  }, SESSION_TTL);
+  console.log('[checkout] Redis set result:', result);
+}
+
+async function deleteSession(userId) {
+  await cache.del(`checkout:${userId}`);
+}
+
+router.get('/session/:userId', async (req, res) => {
   const { userId } = req.params;
-  let session = checkoutSessions.get(userId);
+  const session = await getSession(userId);
 
   if (!session) {
     return res.status(404).json({
@@ -24,35 +102,33 @@ router.get('/session/:userId', (req, res) => {
   res.json({
     success: true,
     data: {
-      ...session,
+      id: session.id,
+      userId: session.userId,
+      items: session.items,
       subtotal: session.subtotal,
-      taxableAmount: session.taxableAmount,
+      discount: session.discount,
+      discountCode: session.discountCode,
       tax: session.tax,
-      total: session.total
+      shippingCost: session.shippingCost,
+      total: session.total,
+      status: session.status,
+      shippingAddress: session.shippingAddress
     }
   });
 });
 
-// POST create/initiate checkout session from cart
 router.post('/session/:userId', async (req, res) => {
   const { userId } = req.params;
-  const { items, shippingAddress } = req.body;
+  const { items, addressId } = req.body;
 
   console.log('Creating checkout session for userId:', userId);
-  console.log('Items:', items);
-  console.log('Shipping Address:', shippingAddress);
 
   if (!items || !Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({
-      success: false,
-      error: 'Cart items are required'
-    });
+    return res.status(400).json({ success: false, error: 'Cart items are required' });
   }
 
-  // Create new checkout session
   const session = new CheckoutSession(userId);
-  
-  // Add items from cart
+
   items.forEach(item => {
     session.addItem({
       id: item.productId,
@@ -62,15 +138,18 @@ router.post('/session/:userId', async (req, res) => {
     }, item.quantity);
   });
 
-  // Set shipping address if provided
-  if (shippingAddress) {
-    session.calculateShipping(shippingAddress);
+  // If addressId provided, fetch saved address
+  // Note: In a real microservices env, this would be a call to landing-service.
+  // For this implementation, the frontend will fetch the address from landing-service
+  // and pass the full address object to 'set_shipping' or the session creation.
+  if (addressId) {
+    // This part is now redundant if the frontend sends the full address.
+    // But we can keep a placeholder or remove it.
   }
 
-  checkoutSessions.set(userId, session);
+  await saveSession(userId, session);
 
   console.log('Checkout session created:', session.id);
-
   res.json({
     success: true,
     message: 'Checkout session created',
@@ -83,17 +162,17 @@ router.post('/session/:userId', async (req, res) => {
       tax: session.tax,
       shippingCost: session.shippingCost,
       total: session.total,
-      status: session.status
+      status: session.status,
+      shippingAddress: session.shippingAddress
     }
   });
 });
 
-// PUT update checkout session (add/remove items, apply discount, etc.)
-router.put('/session/:userId', (req, res) => {
+router.put('/session/:userId', async (req, res) => {
   const { userId } = req.params;
   const { action, itemId, product, quantity, discountCode, shippingAddress } = req.body;
 
-  let session = checkoutSessions.get(userId);
+  let session = await getSession(userId);
 
   if (!session) {
     return res.status(404).json({
@@ -133,27 +212,28 @@ router.put('/session/:userId', (req, res) => {
       });
   }
 
+  await saveSession(userId, session);
+
   res.json({
     success: true,
     message: 'Checkout session updated',
     data: {
       ...session,
       subtotal: session.subtotal,
-      taxableAmount: session.taxableAmount,
+      taxableAmount: session.subtotal,
       tax: session.tax,
       total: session.total
     }
   });
 });
 
-// POST process payment and create order
 router.post('/session/:userId/checkout', async (req, res) => {
   const { userId } = req.params;
   const { paymentMethod, paymentDetails, customerEmail } = req.body;
 
   console.log('Processing checkout for userId:', userId);
 
-  let session = checkoutSessions.get(userId);
+  let session = await getSession(userId);
 
   if (!session || session.items.length === 0) {
     return res.status(404).json({
@@ -162,7 +242,6 @@ router.post('/session/:userId/checkout', async (req, res) => {
     });
   }
 
-  // Process payment
   const paymentResult = session.processPayment(paymentMethod, paymentDetails);
 
   if (!paymentResult.success) {
@@ -173,16 +252,12 @@ router.post('/session/:userId/checkout', async (req, res) => {
   }
 
   try {
-    // Save order to database
     const order = await session.saveOrder();
+    await deleteSession(userId);
 
-    // Clear the checkout session
-    checkoutSessions.delete(userId);
-
-    // Send order confirmation email
-    if (customerEmail) {
-      await emailService.sendOrderConfirmation(order, customerEmail);
-    }
+    // if (customerEmail) {
+    //   await emailService.sendOrderConfirmation(order, customerEmail);
+    // }
 
     console.log('Order created:', order.orderId);
 
@@ -204,7 +279,6 @@ router.post('/session/:userId/checkout', async (req, res) => {
   }
 });
 
-// GET order by ID
 router.get('/order/:orderId', async (req, res) => {
   const { orderId } = req.params;
   
@@ -231,7 +305,6 @@ router.get('/order/:orderId', async (req, res) => {
   }
 });
 
-// GET all orders for user
 router.get('/orders/:userId', async (req, res) => {
   const { userId } = req.params;
 
@@ -256,7 +329,6 @@ router.get('/orders/:userId', async (req, res) => {
   }
 });
 
-// DEBUG: Get ALL orders (for debugging)
 router.get('/orders/debug', async (req, res) => {
   const { getPool, isConnected } = require('../config/database');
 
@@ -271,7 +343,6 @@ router.get('/orders/debug', async (req, res) => {
         data: rows
       });
     } else {
-      // Return in-memory orders
       const { orders } = require('../config/database');
       const allOrders = Array.from(orders.values());
       res.json({
@@ -290,7 +361,6 @@ router.get('/orders/debug', async (req, res) => {
   }
 });
 
-// GET available discount codes
 router.get('/discount-codes', (req, res) => {
   res.json({
     success: true,

@@ -25,7 +25,9 @@ router.get('/', async (req, res) => {
     data: products
   };
 
-  await cache.set(cacheKey, data, CACHE_TTL);
+  console.log('[catalog] Caching key', cacheKey);
+  const resultAll = await cache.set(cacheKey, data, CACHE_TTL);
+  console.log('[catalog] Cache set result for all products:', resultAll);
   res.json(data);
 });
 
@@ -56,7 +58,9 @@ router.get('/category/:category', async (req, res) => {
     data: filteredProducts
   };
 
-  await cache.set(cacheKey, data, CACHE_TTL);
+  console.log('[catalog] Caching key', cacheKey);
+  const resultCategory = await cache.set(cacheKey, data, CACHE_TTL);
+  console.log('[catalog] Cache set result for category:', resultCategory);
   res.json(data);
 });
 
@@ -75,7 +79,9 @@ router.get('/categories', async (req, res) => {
     data: categories
   };
 
-  await cache.set(cacheKey, data, CACHE_TTL);
+  console.log('[catalog] Caching key', cacheKey);
+  const resultCategories = await cache.set(cacheKey, data, CACHE_TTL);
+  console.log('[catalog] Cache set result for categories list:', resultCategories);
   res.json(data);
 });
 
@@ -129,7 +135,9 @@ router.get('/search', async (req, res) => {
     data: paginatedProducts
   };
 
-  await cache.set(cacheKey, data, CACHE_TTL);
+  console.log('[catalog] Caching key', cacheKey);
+  const resultSearch = await cache.set(cacheKey, data, CACHE_TTL);
+  console.log('[catalog] Cache set result for search:', resultSearch);
   res.json(data);
 });
 
@@ -156,7 +164,9 @@ router.get('/:id', async (req, res) => {
     data: product
   };
 
-  await cache.set(cacheKey, data, CACHE_TTL);
+  console.log('[catalog] Caching key', cacheKey);
+  const resultProduct = await cache.set(cacheKey, data, CACHE_TTL);
+  console.log('[catalog] Cache set result for product id:', resultProduct);
   res.json(data);
 });
 

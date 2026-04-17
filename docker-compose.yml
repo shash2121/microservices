@@ -40,6 +40,26 @@ services:
       timeout: 5s
       retries: 5
 
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: shophub_rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"   # AMQP protocol
+      - "15672:15672" # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - shophub_network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   landing-service:
     image: sha2121/shophub-landing-page:1
     container_name: shophub_landing
@@ -53,6 +73,7 @@ services:
       DB_USER: shophub_user
       DB_PASSWORD: shophub_pass
       DB_NAME: shophub
+      RABBIT_URL: amqp://rabbitmq
     ports:
       - "3000:3000"
     depends_on:
@@ -70,6 +91,7 @@ services:
       NODE_ENV: development
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      RABBIT_URL: amqp://rabbitmq
     ports:
       - "3001:3001"
     depends_on:
@@ -85,8 +107,14 @@ services:
     environment:
       PORT: 3002
       NODE_ENV: development
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RABBIT_URL: amqp://rabbitmq
     ports:
       - "3002:3002"
+    depends_on:
+      redis:
+        condition: service_healthy
     networks:
       - shophub_network
 
@@ -102,10 +130,15 @@ services:
       DB_USER: shophub_user
       DB_PASSWORD: shophub_pass
       DB_NAME: shophub
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RABBIT_URL: amqp://rabbitmq
     ports:
       - "3003:3003"
     depends_on:
       mysql:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - shophub_network
@@ -117,3 +150,4 @@ networks:
 volumes:
   mysql_data:
   redis_data:
+  rabbitmq_data:

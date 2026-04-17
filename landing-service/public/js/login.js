@@ -26,9 +26,13 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     const result = await response.json();
 
     if (result.success) {
-      // Store token and user info
+      // Store token and user info in localStorage
       localStorage.setItem('shophub_token', result.data.token);
       localStorage.setItem('shophub_user', JSON.stringify(result.data.user));
+      // Also set a cookie so other origins (e.g., checkout-service) can access it
+      // Store token in a cookie accessible across all ports on localhost (no domain attribute for broader scope)
+      // Set a simple cookie accessible on all localhost ports (no SameSite or Secure flags for http)
+      document.cookie = `shophub_token=${result.data.token}; path=/`;
 
       // Generate and store userId for cart service
       let userId = localStorage.getItem('shophub_userId');

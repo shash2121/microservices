@@ -2,11 +2,21 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { testConnection } = require('./config/database');
+const { cache } = require('./config/redis');
 
 const checkoutRoutes = require('./routes/checkout');
 
 const app = express();
 const PORT = process.env.PORT || 3003;
+
+async function connectRedis() {
+  try {
+    await cache.connect();
+    console.log('✅ Redis connected');
+  } catch (err) {
+    console.warn('⚠️ Redis connection failed, continuing without cache:', err.message);
+  }
+}
 
 // Middleware
 app.use(cors({
@@ -68,6 +78,9 @@ app.use((err, req, res, next) => {
 async function startServer() {
   // Test database connection
   await testConnection();
+  
+  // Connect to Redis
+  await connectRedis();
   
   app.listen(PORT, () => {
     console.log(`Checkout Service running on port ${PORT}`);

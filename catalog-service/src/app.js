@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 
 const productRoutes = require('./routes/products');
 const { cache } = require('./config/redis');
@@ -25,6 +26,15 @@ connectRedis();
 app.use(cors());
 app.use(express.json());
 
+// Serve static assets from the public folder (one level up from src)
+const publicDir = path.join(__dirname, '..', 'public');
+app.use(express.static(publicDir));
+
+// Root route – serve index.html explicitly
+app.get('/', (req, res) => {
+  res.sendFile('index.html', { root: publicDir });
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({
@@ -34,18 +44,15 @@ app.get('/health', (req, res) => {
   });
 });
 
-// API Routes
+// API routes – placed after static so UI is served for root
 app.use('/api/products', productRoutes);
 
-// Static files
-app.use(express.static('public'));
-
-// Root endpoint
-app.get('/', (req, res) => {
-  res.sendFile('index.html', { root: 'public' });
+// Fallback to index.html for any other route (SPA support)
+app.get('*', (req, res) => {
+  res.sendFile('index.html', { root: publicDir });
 });
 
-// 404 handler
+// 404 handler for API routes (won't be reached for SPA fallback)
 app.use((req, res) => {
   res.status(404).json({
     error: 'Not Found',
