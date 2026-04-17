@@ -96,19 +96,40 @@ async function loadCart() {
       throw new Error('Failed to load cart');
     }
 
-    const result = await response.json();
-    console.log('Cart loaded:', result);
+  const result = await response.json();
+  console.log('Cart loaded:', result);
 
-    if (result.success && result.data.items && result.data.items.length > 0) {
-      cart = result.data;
-      // We no longer call createCheckoutSession() here to prevent immediate order placement
-      showCheckoutContent();
-    } else {
-      showEmptyCart();
-    }
+  if (result.success && result.data.items && result.data.items.length > 0) {
+    cart = result.data;
+    // Initialize checkout session after cart is loaded
+    await createCheckoutSession();
+    showCheckoutContent();
+  } else {
+    showEmptyCart();
+  }
   } catch (err) {
     console.error('Error loading cart:', err);
     showEmptyCart();
+  }
+}
+
+// Create a checkout session on the backend for the current user
+async function createCheckoutSession() {
+  try {
+    // Send cart items to backend to initialize the session
+    const response = await fetch(`${CHECKOUT_API_BASE}/session/${USER_ID}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: cart.items })
+    });
+    const result = await response.json();
+    if (result.success) {
+      checkoutSession = result.data;
+    } else {
+      console.error('Failed to create checkout session:', result.error);
+    }
+  } catch (err) {
+    console.error('Error creating checkout session:', err);
   }
 }
 
@@ -471,7 +492,7 @@ function handlePaymentMethodChange(e) {
   }
 }
 
-// This function contains the original order placement logic
+// The original duplicate confirmation logic has been removed to rely on the modal flow defined earlier.
 async function processOrder() {
   // Validate shipping address
   const address = getShippingAddressFromForm();
