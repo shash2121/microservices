@@ -51,7 +51,7 @@ function setupEventListeners() {
   shippingForm.addEventListener('submit', handleShippingSubmit);
 
   // Place order
-  placeOrderBtn.addEventListener('click', handlePlaceOrder);
+  placeOrderBtn.addEventListener('click', processOrder);
 
   // Apply discount
   applyDiscountBtn.addEventListener('click', handleApplyDiscount);
@@ -60,9 +60,6 @@ function setupEventListeners() {
   document.querySelectorAll('input[name="paymentMethod"]').forEach(radio => {
     radio.addEventListener('change', handlePaymentMethodChange);
   });
-
-  // NEW: Address selection
-  addressListContainer.addEventListener('change', handleAddressSelection);
 }
 
 async function loadCart() {
@@ -78,12 +75,10 @@ async function loadCart() {
     const result = await response.json();
     console.log('Cart loaded:', result);
 
-    // Load saved addresses regardless of cart contents so the UI can display them
-    await loadSavedAddresses();
-
     if (result.success && result.data.items && result.data.items.length > 0) {
       cart = result.data;
-      await createCheckoutSession();
+      // We no longer call createCheckoutSession() here to prevent immediate order placement
+      showCheckoutContent();
     } else {
       showEmptyCart();
     }
@@ -118,19 +113,24 @@ async function loadSavedAddresses() {
 }
 
 function renderAddressOptions(addresses) {
-  // If no address is currently selected, default to the first one
   if (!currentAddressId && addresses.length > 0) {
     currentAddressId = addresses[0].id;
   }
 
-  addressListContainer.innerHTML = addresses.map(addr => `
-    <label class="address-option">
-      <input type="radio" name="selectedAddress" value="${addr.id}" ${addr.id === currentAddressId ? 'checked' : ''}>
-      <div class="address-info">
-        <span class="address-text">${addr.addressLine1}${addr.addressLine2 ? ', ' + addr.addressLine2 : ''}, ${addr.city}, ${addr.state} - ${addr.zipCode}</span>
-      </div>
-    </label>
-  `).join('');
+  addressListContainer.innerHTML = addresses.map((addr, index) => {
+    const addressLabel = `Address ${index + 1}`;
+    const fullAddress = `${addr.addressLine1}${addr.addressLine2 ? ', ' + addr.addressLine2 : ''}, ${addr.city}, ${addr.state} - ${addr.zipCode}`;
+    
+    return `
+      <label class="address-option">
+        <input type="radio" name="selectedAddress" value="${addr.id}" ${addr.id === currentAddressId ? 'checked' : ''}>
+        <div class="address-info">
+          <span class="address-label">${addressLabel}</span>
+          <span class="address-text">${fullAddress}</span>
+        </div>
+      </label>
+    `;
+  }).join('');
   savedAddressesContainer.classList.remove('hidden');
 }
 
@@ -195,52 +195,6 @@ async function updateShippingAddressInSession() {
 
 let currentAddressId = null;
 
-async function createCheckoutSession() {
-  try {
-    const shippingAddress = getShippingAddressFromForm();
-    
-    // Check if we have a selected address to use instead
-    let addressIdToUse = null;
-    const radioChecked = document.querySelector('input[name="selectedAddress"]:checked');
-    if (radioChecked) {
-      addressIdToUse = radioChecked.value;
-    }
-
-    const response = await fetch(`${CHECKOUT_API_BASE}/session/${USER_ID}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        items: cart.items,
-        addressId: addressIdToUse
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to create checkout session');
-    }
-
-    const result = await response.json();
-    console.log('Checkout session created:', result);
-
-    if (result.success) {
-      checkoutSession = result.data;
-      showCheckoutContent();
-    }
-  } catch (err) {
-    console.error('Error creating checkout session:', err);
-    checkoutSession = {
-      items: cart.items,
-      subtotal: cart.totalPrice * 83,
-      discount: 0,
-      shippingCost: 0,
-      tax: 0,
-      total: 0
-    };
-    showCheckoutContent();
-  }
-}
 
 function getShippingAddressFromForm() {
   return {
@@ -257,46 +211,6 @@ function getShippingAddressFromForm() {
 
 // Duplicate function removed
 
-async function createCheckoutSession() {
-  try {
-    const shippingAddress = getShippingAddressFromForm();
-
-    const response = await fetch(`${CHECKOUT_API_BASE}/session/${USER_ID}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        items: cart.items,
-        shippingAddress: shippingAddress
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to create checkout session');
-    }
-
-    const result = await response.json();
-    console.log('Checkout session created:', result);
-
-    if (result.success) {
-      checkoutSession = result.data;
-      showCheckoutContent();
-    }
-  } catch (err) {
-    console.error('Error creating checkout session:', err);
-    // Continue without session, will create on place order
-    checkoutSession = {
-      items: cart.items,
-      subtotal: cart.totalPrice * 83, // Convert to INR
-      discount: 0,
-      shippingCost: 0,
-      tax: 0,
-      total: 0
-    };
-    showCheckoutContent();
-  }
-}
 
 function getShippingAddressFromForm() {
   return {
@@ -549,7 +463,8 @@ function handlePaymentMethodChange(e) {
   }
 }
 
-async function handlePlaceOrder() {
+// This function contains the original order placement logic
+async function processOrder() {
   // Validate shipping address
   const address = getShippingAddressFromForm();
   if (!address.name || !address.email || !address.address || !address.city ||
@@ -577,9 +492,11 @@ async function handlePlaceOrder() {
     }
   }
 
-  // Disable button
+  // Disable button to prevent double clicks
   placeOrderBtn.disabled = true;
   placeOrderBtn.textContent = 'Processing...';
+
+
 
   try {
     const response = await fetch(`${CHECKOUT_API_BASE}/session/${USER_ID}/checkout`, {
@@ -596,11 +513,10 @@ async function handlePlaceOrder() {
 
     const result = await response.json();
 
+    // The backend returns success when the order is created. Show the modal directly.
     if (result.success) {
-      // Clear cart
       await clearCart();
-
-      // Show success modal
+      checkoutSession = null;
       showSuccessModal(result.data.order);
     } else {
       alert(result.error || 'Failed to place order. Please try again.');
@@ -609,12 +525,15 @@ async function handlePlaceOrder() {
     }
   } catch (err) {
     console.error('Error placing order:', err);
-    // Simulate success for demo
-    const order = simulateOrderSuccess(address);
-    await clearCart();
-    showSuccessModal(order);
+    alert('Failed to place order. Please try again later.');
+    placeOrderBtn.disabled = false;
+    placeOrderBtn.textContent = 'Place Order';
   }
 }
+
+
+
+
 
 function simulateOrderSuccess(address) {
   const usdToInr = 83;

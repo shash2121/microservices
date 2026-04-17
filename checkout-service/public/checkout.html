@@ -38,56 +38,51 @@
              <div class="form-section">
                <h2 class="section-title">1. Shipping Address</h2>
                
-               <div id="savedAddressesContainer" class="saved-addresses hidden">
-                 <p><strong>Select a saved address:</strong></p>
-                 <div id="addressList" class="address-options"></div>
-               </div>
-
-               <form id="shippingForm" class="checkout-form">
-                 <div class="form-row">
-                   <div class="form-group">
-                     <label for="customerName">Full Name *</label>
-                     <input type="text" id="customerName" required placeholder="John Doe">
-                   </div>
-                   <div class="form-group">
-                     <label for="customerEmail">Email *</label>
-                     <input type="email" id="customerEmail" required placeholder="john@example.com">
-                   </div>
-                 </div>
-                 
-                 <div class="form-group">
-                   <label for="address">Address *</label>
-                   <textarea id="address" required placeholder="House no., Street, Area" rows="2"></textarea>
-                 </div>
-                 
-                 <div class="form-row">
-                   <div class="form-group">
-                     <label for="city">City *</label>
-                     <input type="text" id="city" required placeholder="Mumbai">
-                   </div>
-                   <div class="form-group">
-                     <label for="state">State *</label>
-                     <input type="text" id="state" required placeholder="Maharashtra">
-                   </div>
-                 </div>
-                 
-                 <div class="form-row">
-                   <div class="form-group">
-                     <label for="pincode">Pincode *</label>
-                     <input type="text" id="pincode" required placeholder="400001" pattern="[0-9]{6}">
-                   </div>
-                   <div class="form-group">
-                     <label for="phone">Phone *</label>
-                     <input type="tel" id="phone" required placeholder="9876543210" pattern="[0-9]{10}">
-                   </div>
-                 </div>
-                 
-                 <div class="form-group checkbox-group">
-                   <input type="checkbox" id="saveAddressCheckbox">
-                   <label for="saveAddressCheckbox">Save this address for future use</label>
-                 </div>
-                 <button type="submit" class="btn btn-secondary">Save Address</button>
-               </form>
+                <form id="shippingForm" class="checkout-form">
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label for="customerName">Full Name *</label>
+                      <input type="text" id="customerName" required placeholder="John Doe">
+                    </div>
+                    <div class="form-group">
+                      <label for="customerEmail">Email *</label>
+                      <input type="email" id="customerEmail" required placeholder="john@example.com">
+                    </div>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label for="address">Address *</label>
+                    <textarea id="address" required placeholder="House no., Street, Area" rows="2"></textarea>
+                  </div>
+                  
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label for="city">City *</label>
+                      <input type="text" id="city" required placeholder="Mumbai">
+                    </div>
+                    <div class="form-group">
+                      <label for="state">State *</label>
+                      <input type="text" id="state" required placeholder="Maharashtra">
+                    </div>
+                  </div>
+                  
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label for="pincode">Pincode *</label>
+                      <input type="text" id="pincode" required placeholder="400001" pattern="[0-9]{6}">
+                    </div>
+                    <div class="form-group">
+                      <label for="phone">Phone *</label>
+                      <input type="tel" id="phone" required placeholder="9876543210" pattern="[0-9]{10}">
+                    </div>
+                  </div>
+                  
+                  <div class="form-group checkbox-group">
+                    <input type="checkbox" id="saveAddressCheckbox">
+                    <label for="saveAddressCheckbox">Save this address for future use</label>
+                  </div>
+                  <button type="submit" class="btn btn-secondary">Save Address</button>
+                </form>
              </div>
 
 
@@ -196,9 +191,21 @@
                 <span id="total">₹0</span>
               </div>
 
-              <button id="placeOrder" class="btn btn-primary btn-block btn-large">
-                Place Order
-              </button>
+                <button id="placeOrder" type="button" class="btn btn-primary btn-block btn-large">
+                  Place Order
+                </button>
+
+                <!-- Confirmation Modal -->
+                <div id="confirmModal" class="modal hidden">
+                  <div class="modal-content">
+                    <h3>Confirm Order</h3>
+                    <p>Are you sure you want to place this order?</p>
+        <div class="modal-actions">
+          <button id="confirmYes" class="btn btn-primary">Yes, place order</button>
+          <button id="confirmNo" class="btn btn-secondary">Cancel</button>
+        </div>
+                  </div>
+                </div>
 
               <p class="terms-text">
                 By placing this order, you agree to our Terms of Service and Privacy Policy.
