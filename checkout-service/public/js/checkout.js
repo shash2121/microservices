@@ -33,6 +33,7 @@ const applyDiscountBtn = document.getElementById('applyDiscount');
 const discountCodeInput = document.getElementById('discountCode');
 const discountMessage = document.getElementById('discountMessage');
 const successModal = document.getElementById('successModal');
+const confirmModal = document.getElementById('confirmModal');
 const cardDetails = document.getElementById('cardDetails');
 
 // NEW: Address selection elements
@@ -51,7 +52,30 @@ function setupEventListeners() {
   shippingForm.addEventListener('submit', handleShippingSubmit);
 
   // Place order
-  placeOrderBtn.addEventListener('click', processOrder);
+  placeOrderBtn.addEventListener('click', showConfirmModal);
+
+function showConfirmModal() {
+  // Validate shipping address before showing modal
+  const address = getShippingAddressFromForm();
+  if (!address.name || !address.email || !address.address || !address.city ||
+      !address.state || !address.pincode || !address.phone) {
+    alert('Please fill in all shipping address fields');
+    shippingForm.scrollIntoView({ behavior: 'smooth' });
+    return;
+  }
+  // Show confirmation modal
+  confirmModal.classList.remove('hidden');
+}
+
+// Handle modal actions
+document.getElementById('confirmYes').addEventListener('click', async () => {
+  confirmModal.classList.add('hidden');
+  await processOrder();
+});
+
+document.getElementById('confirmNo').addEventListener('click', () => {
+  confirmModal.classList.add('hidden');
+});
 
   // Apply discount
   applyDiscountBtn.addEventListener('click', handleApplyDiscount);
@@ -194,22 +218,6 @@ async function updateShippingAddressInSession() {
 }
 
 let currentAddressId = null;
-
-
-function getShippingAddressFromForm() {
-  return {
-    name: document.getElementById('customerName').value,
-    email: document.getElementById('customerEmail').value,
-    address: document.getElementById('address').value,
-    city: document.getElementById('city').value,
-    state: document.getElementById('state').value,
-    pincode: document.getElementById('pincode').value,
-    phone: document.getElementById('phone').value
-  };
-}
-
-
-// Duplicate function removed
 
 
 function getShippingAddressFromForm() {
