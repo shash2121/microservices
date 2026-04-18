@@ -132,18 +132,18 @@ async function saveOrderToDB(order) {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     await connection.execute(orderQuery, [
-      order.orderId,
-      order.userId,
-      order.status,
-      order.pricing.subtotal,
-      order.pricing.discount,
-      order.pricing.discountCode,
-      order.pricing.tax,
-      order.pricing.shippingCost,
-      order.shippingAddress,
-      order.paymentMethod,
-      order.paymentStatus,
-      order.pricing.total
+      order.orderId || null,
+      order.userId || null,
+      order.status || null,
+      order.pricing?.subtotal ?? null,
+      order.pricing?.discount ?? null,
+      order.pricing?.discountCode ?? null,
+      order.pricing?.tax ?? null,
+      order.pricing?.shippingCost ?? null,
+      order.shippingAddress || null,
+      order.paymentMethod || null,
+      order.paymentStatus || null,
+      order.pricing?.total ?? null
     ]);
 
     const itemQuery = `
@@ -152,13 +152,13 @@ async function saveOrderToDB(order) {
     `;
     for (const item of order.items) {
       await connection.execute(itemQuery, [
-        require('uuid').v4(),
-        order.orderId,
-        item.productId,
-        item.name,
-        item.price,
-        item.quantity,
-        item.subtotal,
+        require('uuid').v4() || null,
+        order.orderId || null,
+        item.productId || null,
+        item.name || null,
+        item.price || null,
+        item.quantity || null,
+        item.subtotal || null,
         item.image || ''
       ]);
     }

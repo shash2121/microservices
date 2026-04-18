@@ -1,23 +1,32 @@
+// Checkout Service Frontend
+// This script handles loading the cart, creating a checkout session,
+// managing shipping address, applying discounts, and placing the order.
+
 const API_BASE = 'http://localhost:3002/api/cart';
 const CHECKOUT_API_BASE = 'http://localhost:3003/api/checkout';
 
-// Get userId from URL or localStorage
-const urlParams = new URLSearchParams(window.location.search);
-let USER_ID = urlParams.get('userId');
-
-if (!USER_ID) {
-  USER_ID = localStorage.getItem('shophub_userId');
-  if (!USER_ID) {
-    USER_ID = 'user_' + Math.random().toString(36).substr(2, 9);
-    localStorage.setItem('shophub_userId', USER_ID);
+// ---------------------------------------------------------------------
+// Utility: Get user identifier (persisted in localStorage)
+// ---------------------------------------------------------------------
+function getUserId() {
+  const urlParams = new URLSearchParams(window.location.search);
+  let uid = urlParams.get('userId');
+  if (!uid) {
+    uid = localStorage.getItem('shophub_userId') || `user_${Math.random().toString(36).substr(2, 9)}`;
+    localStorage.setItem('shophub_userId', uid);
   }
+  return uid;
 }
 
-let cart = null;
-let checkoutSession = null;
-let appliedDiscount = 0;
+const USER_ID = getUserId();
 
-// DOM Elements
+let cart = null;               // Raw cart data from cart service
+let checkoutSession = null;    // Session object returned by checkout service
+let appliedDiscount = 0;       // Discount amount in INR (calculated locally when needed)
+
+// ---------------------------------------------------------------------
+// DOM references (assumes the HTML structure from the original project)
+// ---------------------------------------------------------------------
 const loading = document.getElementById('loading');
 const emptyCart = document.getElementById('emptyCart');
 const checkoutContent = document.getElementById('checkoutContent');
@@ -36,585 +45,101 @@ const successModal = document.getElementById('successModal');
 const confirmModal = document.getElementById('confirmModal');
 const cardDetails = document.getElementById('cardDetails');
 
-// NEW: Address selection elements
-const savedAddressesContainer = document.getElementById('savedAddressesContainer');
-const addressListContainer = document.getElementById('addressList');
-
-
-// Initialize
-document.addEventListener('DOMContentLoaded', () => {
+// ---------------------------------------------------------------------
+// Initialise page
+// ---------------------------------------------------------------------
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    loadCart();
+    setupEventListeners();
+  });
+} else {
   loadCart();
   setupEventListeners();
-});
-
-function setupEventListeners() {
-  // Shipping form submit
-  shippingForm.addEventListener('submit', handleShippingSubmit);
-
-  // Place order
-  placeOrderBtn.addEventListener('click', showConfirmModal);
-
-function showConfirmModal() {
-  // Validate shipping address before showing modal
-  const address = getShippingAddressFromForm();
-  if (!address.name || !address.email || !address.address || !address.city ||
-      !address.state || !address.pincode || !address.phone) {
-    alert('Please fill in all shipping address fields');
-    shippingForm.scrollIntoView({ behavior: 'smooth' });
-    return;
-  }
-  // Show confirmation modal
-  confirmModal.classList.remove('hidden');
 }
 
-// Handle modal actions
-document.getElementById('confirmYes').addEventListener('click', async () => {
-  confirmModal.classList.add('hidden');
-  await processOrder();
-});
+function setupEventListeners() {
+  // Shipping address form
+  shippingForm.addEventListener('submit', handleShippingSubmit);
 
-document.getElementById('confirmNo').addEventListener('click', () => {
-  confirmModal.classList.add('hidden');
-});
+  // Place order – show confirmation modal first
+  placeOrderBtn.addEventListener('click', showConfirmModal);
 
-  // Apply discount
+   // Confirmation modal actions
+   document.getElementById('confirmYes').addEventListener('click', async () => {
+     console.log('ConfirmYes clicked');
+     confirmModal.classList.add('hidden');
+     await processOrder();
+   });
+  document.getElementById('confirmNo').addEventListener('click', () => {
+    confirmModal.classList.add('hidden');
+  });
+
+  // Discount handling
   applyDiscountBtn.addEventListener('click', handleApplyDiscount);
 
-  // Payment method change
+  // Payment method toggle (card vs cash)
   document.querySelectorAll('input[name="paymentMethod"]').forEach(radio => {
-    radio.addEventListener('change', handlePaymentMethodChange);
+    radio.addEventListener('change', e => {
+      cardDetails.style.display = e.target.value === 'card' ? 'block' : 'none';
+    });
   });
 }
 
+function showConfirmModal() {
+  console.log('showConfirmModal called');
+  const address = getShippingAddressFromForm();
+  const required = ['name', 'email', 'address', 'city', 'state', 'pincode', 'phone'];
+  for (const field of required) {
+    if (!address[field]) {
+      alert('Please fill in all shipping address fields');
+      shippingForm.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
+  }
+  console.log('Address valid, showing confirmModal');
+  confirmModal.classList.remove('hidden');
+}
+
+// ---------------------------------------------------------------------
+// Cart loading & checkout session creation
+// ---------------------------------------------------------------------
 async function loadCart() {
   showLoading();
-
   try {
-    const response = await fetch(`${API_BASE}/${USER_ID}`);
-
-    if (!response.ok) {
-      throw new Error('Failed to load cart');
+    const resp = await fetch(`${API_BASE}/${USER_ID}`);
+    if (!resp.ok) throw new Error('Failed to load cart');
+    const result = await resp.json();
+    if (result.success && result.data.items && result.data.items.length) {
+      cart = result.data;
+      await createCheckoutSession();
+      showCheckoutContent();
+    } else {
+      showEmptyCart();
     }
-
-  const result = await response.json();
-  console.log('Cart loaded:', result);
-
-  if (result.success && result.data.items && result.data.items.length > 0) {
-    cart = result.data;
-    // Initialize checkout session after cart is loaded
-    await createCheckoutSession();
-    showCheckoutContent();
-  } else {
-    showEmptyCart();
-  }
-  } catch (err) {
-    console.error('Error loading cart:', err);
+  } catch (e) {
+    console.error(e);
     showEmptyCart();
   }
 }
 
-// Create a checkout session on the backend for the current user
+// Create a checkout session on the backend, sending the cart items.
 async function createCheckoutSession() {
   try {
-    // Send cart items to backend to initialize the session
-    const response = await fetch(`${CHECKOUT_API_BASE}/session/${USER_ID}`, {
+    const resp = await fetch(`${CHECKOUT_API_BASE}/session/${USER_ID}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: cart.items })
     });
-    const result = await response.json();
-    if (result.success) {
-      checkoutSession = result.data;
+    const data = await resp.json();
+    if (data.success) {
+      checkoutSession = data.data;
     } else {
-      console.error('Failed to create checkout session:', result.error);
+      console.error('Checkout session creation failed:', data.error);
     }
-  } catch (err) {
-    console.error('Error creating checkout session:', err);
+  } catch (e) {
+    console.error('Error creating checkout session:', e);
   }
-}
-
-async function loadSavedAddresses() {
-  try {
-    // Use the unified token helper to support localStorage and cookie storage
-    const token = getAuthToken();
-    if (!token) return;
-
-    const response = await fetch(`http://localhost:3000/api/auth/addresses`, {
-      credentials: 'include', // send cookies for cross‑origin request
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
-    
-    if (response.ok) {
-      const result = await response.json();
-      if (result.success && result.data.length > 0) {
-        renderAddressOptions(result.data);
-      }
-    }
-  } catch (err) {
-    console.error('Error loading addresses:', err);
-  }
-}
-
-function renderAddressOptions(addresses) {
-  if (!currentAddressId && addresses.length > 0) {
-    currentAddressId = addresses[0].id;
-  }
-
-  addressListContainer.innerHTML = addresses.map((addr, index) => {
-    const addressLabel = `Address ${index + 1}`;
-    const fullAddress = `${addr.addressLine1}${addr.addressLine2 ? ', ' + addr.addressLine2 : ''}, ${addr.city}, ${addr.state} - ${addr.zipCode}`;
-    
-    return `
-      <label class="address-option">
-        <input type="radio" name="selectedAddress" value="${addr.id}" ${addr.id === currentAddressId ? 'checked' : ''}>
-        <div class="address-info">
-          <span class="address-label">${addressLabel}</span>
-          <span class="address-text">${fullAddress}</span>
-        </div>
-      </label>
-    `;
-  }).join('');
-  savedAddressesContainer.classList.remove('hidden');
-}
-
-function handleAddressSelection(e) {
-  if (e.target.name === 'selectedAddress') {
-    const addressId = e.target.value;
-    
-    // Find the selected address object from the list
-    const selectedRadio = e.target;
-    const addressText = selectedRadio.nextElementSibling.querySelector('.address-text').textContent;
-    
-    // In a real app, we'd store the address objects in a variable
-    // For now, we'll fetch all addresses again or store them globally
-    fetchAndFillAddress(addressId);
-  }
-}
-
-async function fetchAndFillAddress(addressId) {
-  try {
-    const token = localStorage.getItem('shophub_token');
-    const response = await fetch(`http://localhost:3000/api/auth/addresses`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    const result = await response.json();
-    const address = result.data.find(a => a.id === addressId);
-    
-    if (address) {
-      document.getElementById('address').value = address.addressLine1 + (address.addressLine2 ? ', ' + address.addressLine2 : '');
-      document.getElementById('city').value = address.city;
-      document.getElementById('state').value = address.state;
-      document.getElementById('pincode').value = address.zipCode;
-      
-      // Also update the checkout session
-      await updateShippingAddressInSession();
-    }
-  } catch (err) {
-    console.error('Error filling address:', err);
-  }
-}
-
-async function updateShippingAddressInSession() {
-  const address = getShippingAddressFromForm();
-  try {
-    const response = await fetch(`${CHECKOUT_API_BASE}/session/${USER_ID}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'set_shipping',
-        shippingAddress: address
-      })
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      checkoutSession = result.data;
-      renderOrderSummary();
-    }
-  } catch (err) {
-    console.error('Error updating session address:', err);
-  }
-}
-
-let currentAddressId = null;
-
-
-function getShippingAddressFromForm() {
-  return {
-    name: document.getElementById('customerName').value,
-    email: document.getElementById('customerEmail').value,
-    address: document.getElementById('address').value,
-    city: document.getElementById('city').value,
-    state: document.getElementById('state').value,
-    pincode: document.getElementById('pincode').value,
-    phone: document.getElementById('phone').value
-  };
-}
-
-function showCheckoutContent() {
-  hideLoading();
-  emptyCart.classList.add('hidden');
-  checkoutContent.classList.remove('hidden');
-  renderOrderSummary();
-}
-
-function renderOrderSummary() {
-  if (!checkoutSession) return;
-
-  // Render items - convert USD to INR
-  summaryItems.innerHTML = checkoutSession.items.map(item => {
-    const priceInINR = Math.round(item.price * 83);
-    return `
-      <div class="summary-item">
-        <img src="${item.image}" alt="${item.name}" class="summary-item-image" onerror="this.src='https://via.placeholder.com/60x60?text=No+Image'">
-        <div class="summary-item-details">
-          <div class="summary-item-name">${item.name}</div>
-          <div class="summary-item-quantity">Qty: ${item.quantity}</div>
-        </div>
-        <div class="summary-item-price">₹${(priceInINR * item.quantity).toLocaleString('en-IN')}</div>
-      </div>
-    `;
-  }).join('');
-
-  // Calculate totals - backend sends USD, convert to INR
-  const usdToInr = 83;
-  
-  // Use backend subtotal if available, otherwise calculate from cart
-  const subtotalINR = Math.round((checkoutSession.subtotal || (cart?.totalPrice || 0)) * usdToInr);
-  
-  // Calculate discount in INR
-  const discountINR = Math.round((checkoutSession.discount || appliedDiscount) * usdToInr);
-  
-  // Taxable amount after discount
-  const taxableAmount = subtotalINR - discountINR;
-  
-  // Shipping: FREE for orders above ₹8300, else ₹150
-  const shipping = taxableAmount > 8300 ? 0 : 150;
-  
-  // Tax: 18% GST on taxable amount
-  const tax = Math.round(taxableAmount * 0.18);
-  
-  // Total = taxable + tax + shipping
-  const total = taxableAmount + tax + shipping;
-
-  subtotalEl.textContent = `₹${subtotalINR.toLocaleString('en-IN')}`;
-  discountEl.textContent = `-₹${discountINR.toLocaleString('en-IN')}`;
-  shippingEl.textContent = shipping === 0 ? 'FREE' : `₹${shipping.toLocaleString('en-IN')}`;
-  taxEl.textContent = `₹${tax.toLocaleString('en-IN')}`;
-  totalEl.textContent = `₹${total.toLocaleString('en-IN')}`;
-
-  // Store calculated values for order placement
-  checkoutSession.shippingCostINR = shipping;
-  checkoutSession.taxINR = tax;
-  checkoutSession.totalINR = total;
-}
-
-async function handleShippingSubmit(e) {
-  e.preventDefault();
-
-  const address = getShippingAddressFromForm();
-
-  // Validate
-  if (!address.name || !address.email || !address.address || !address.city ||
-      !address.state || !address.pincode || !address.phone) {
-    alert('Please fill in all shipping address fields');
-    return;
-  }
-
-  // Update checkout session with shipping
-  try {
-    const response = await fetch(`${CHECKOUT_API_BASE}/session/${USER_ID}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        action: 'set_shipping',
-        shippingAddress: address
-      })
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      checkoutSession = result.data;
-      renderOrderSummary();
-      
-      // NEW: Save address to landing-service if checkbox is checked
-      const saveCheckbox = document.getElementById('saveAddressCheckbox');
-      if (saveCheckbox && saveCheckbox.checked) {
-        await saveAddressToProfile();
-      }
-      
-      alert('Shipping address updated!');
-    }
-  } catch (err) {
-    console.error('Error updating shipping:', err);
-    renderOrderSummary();
-    alert('Address saved locally');
-  }
-}
-
-// Helper to retrieve auth token from localStorage, supporting possible legacy keys
-function getAuthToken() {
-  // First, try to read the token from a cookie (shared across ports)
-  const cookieMatch = document.cookie.match(/(?:^|; )shophub_token=([^;]*)/);
-  if (cookieMatch) return decodeURIComponent(cookieMatch[1]);
-
-  // Fallback to localStorage (used when the same origin loads the script)
-  let token = localStorage.getItem('shophub_token');
-  if (!token) token = localStorage.getItem('auth_token');
-  if (!token) token = localStorage.getItem('jwt');
-  return token;
-}
-
-async function saveAddressToProfile() {
-  try {
-    const token = getAuthToken();
-    if (!token) {
-      alert('Please login to save your address');
-      return;
-    }
-
-    const formAddress = getShippingAddressFromForm();
-    const response = await fetch(`http://localhost:3000/api/auth/addresses`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        addressLine1: formAddress.address,
-        city: formAddress.city,
-        state: formAddress.state,
-        zipCode: formAddress.pincode,
-        country: 'India' // Defaulting to India for this project
-      })
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      alert('Address saved to your profile!');
-      await loadSavedAddresses(); // Refresh the list
-    } else {
-      alert('Failed to save address: ' + result.error);
-    }
-  } catch (err) {
-    console.error('Error saving address to profile:', err);
-    alert('An error occurred while saving the address');
-  }
-}
-
-async function handleApplyDiscount() {
-  const code = discountCodeInput.value.trim().toUpperCase();
-
-  if (!code) {
-    showDiscountMessage('Please enter a coupon code', 'error');
-    return;
-  }
-
-  try {
-    const response = await fetch(`${CHECKOUT_API_BASE}/session/${USER_ID}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        action: 'apply_discount',
-        discountCode: code
-      })
-    });
-
-    const result = await response.json();
-
-    if (result.success) {
-      appliedDiscount = result.data.discount;
-      checkoutSession = result.data;
-      renderOrderSummary();
-      showDiscountMessage(`Discount applied! Saved ₹${appliedDiscount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, 'success');
-    } else {
-      showDiscountMessage(result.error || 'Invalid coupon code', 'error');
-    }
-  } catch (err) {
-    console.error('Error applying discount:', err);
-    // Try local calculation
-    applyDiscountLocally(code);
-  }
-}
-
-function applyDiscountLocally(code) {
-  const discounts = {
-    'WELCOME10': 0.10,
-    'SAVE20': 0.20,
-    'FLAT500': 500
-  };
-
-  const subtotal = checkoutSession?.subtotal || (cart.totalPrice * 83);
-
-  if (discounts[code]) {
-    const discountValue = discounts[code];
-    if (discountValue < 1) {
-      // Check minimum order for SAVE20
-      if (code === 'SAVE20' && subtotal < 5000) {
-        showDiscountMessage('Minimum order value ₹5,000 required', 'error');
-        return;
-      }
-      appliedDiscount = subtotal * discountValue;
-    } else {
-      // Flat discount - check minimum
-      if (code === 'FLAT500' && subtotal < 3000) {
-        showDiscountMessage('Minimum order value ₹3,000 required', 'error');
-        return;
-      }
-      appliedDiscount = Math.min(discountValue, subtotal);
-    }
-
-    renderOrderSummary();
-    showDiscountMessage(`Discount applied! Saved ₹${appliedDiscount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, 'success');
-  } else {
-    showDiscountMessage('Invalid coupon code', 'error');
-  }
-}
-
-function applyCoupon(code) {
-  discountCodeInput.value = code;
-  handleApplyDiscount();
-}
-
-function handlePaymentMethodChange(e) {
-  const method = e.target.value;
-
-  if (method === 'card') {
-    cardDetails.style.display = 'block';
-  } else {
-    cardDetails.style.display = 'none';
-  }
-}
-
-// The original duplicate confirmation logic has been removed to rely on the modal flow defined earlier.
-async function processOrder() {
-  // Validate shipping address
-  const address = getShippingAddressFromForm();
-  if (!address.name || !address.email || !address.address || !address.city ||
-      !address.state || !address.pincode || !address.phone) {
-    alert('Please fill in all shipping address fields');
-    shippingForm.scrollIntoView({ behavior: 'smooth' });
-    return;
-  }
-
-  const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked').value;
-
-  // Get payment details for card
-  let paymentDetails = {};
-  if (paymentMethod === 'card') {
-    paymentDetails = {
-      cardNumber: document.getElementById('cardNumber').value,
-      expiry: document.getElementById('expiry').value,
-      cvv: document.getElementById('cvv').value,
-      cardName: document.getElementById('cardName').value
-    };
-
-    if (!paymentDetails.cardNumber || !paymentDetails.expiry || !paymentDetails.cvv) {
-      alert('Please fill in card details');
-      return;
-    }
-  }
-
-  // Disable button to prevent double clicks
-  placeOrderBtn.disabled = true;
-  placeOrderBtn.textContent = 'Processing...';
-
-
-
-  try {
-    const response = await fetch(`${CHECKOUT_API_BASE}/session/${USER_ID}/checkout`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        paymentMethod,
-        paymentDetails,
-        customerEmail: address.email
-      })
-    });
-
-    const result = await response.json();
-
-    // The backend returns success when the order is created. Show the modal directly.
-    if (result.success) {
-      await clearCart();
-      checkoutSession = null;
-      showSuccessModal(result.data.order);
-    } else {
-      alert(result.error || 'Failed to place order. Please try again.');
-      placeOrderBtn.disabled = false;
-      placeOrderBtn.textContent = 'Place Order';
-    }
-  } catch (err) {
-    console.error('Error placing order:', err);
-    alert('Failed to place order. Please try again later.');
-    placeOrderBtn.disabled = false;
-    placeOrderBtn.textContent = 'Place Order';
-  }
-}
-
-
-
-
-
-function simulateOrderSuccess(address) {
-  const usdToInr = 83;
-  const subtotal = cart.totalPrice * usdToInr;
-  const discount = appliedDiscount;
-  const taxableAmount = subtotal - discount;
-  const shipping = taxableAmount > 8300 ? 0 : 150;
-  const tax = taxableAmount * 0.18;
-  const total = taxableAmount + tax + shipping;
-
-  return {
-    orderId: 'ORD-' + Math.random().toString(36).substr(2, 8).toUpperCase(),
-    items: cart.items.map(item => ({
-      name: item.name,
-      price: item.price * usdToInr,
-      quantity: item.quantity
-    })),
-    pricing: {
-      subtotal,
-      discount,
-      tax,
-      shippingCost: shipping,
-      total
-    },
-    shippingAddress: address,
-    paymentStatus: 'completed'
-  };
-}
-
-async function clearCart() {
-  try {
-    await fetch(`${API_BASE}/${USER_ID}`, {
-      method: 'DELETE'
-    });
-  } catch (err) {
-    console.error('Error clearing cart:', err);
-  }
-}
-
-function showSuccessModal(order) {
-  document.getElementById('orderId').textContent = order.orderId;
-  document.getElementById('orderUserId').textContent = USER_ID;
-  // Use the calculated INR total from checkoutSession if available, otherwise calculate from order
-  const totalINR = checkoutSession?.totalINR || order.pricing.total;
-  document.getElementById('orderTotal').textContent = `₹${totalINR.toLocaleString('en-IN')}`;
-  successModal.classList.remove('hidden');
-
-  // Set orders link with current userId
-  document.getElementById('viewAllOrdersLink').href = `/orders?userId=${USER_ID}`;
-
-  // Store order for viewing
-  window.lastOrder = order;
 }
 
 function showLoading() {
@@ -633,23 +158,205 @@ function showEmptyCart() {
   checkoutContent.classList.add('hidden');
 }
 
-function showDiscountMessage(message, type) {
-  discountMessage.textContent = message;
-  discountMessage.className = 'discount-message ' + type;
-  discountMessage.style.display = 'block';
-
-  setTimeout(() => {
-    discountMessage.style.display = 'none';
-  }, 5000);
+function showCheckoutContent() {
+  hideLoading();
+  emptyCart.classList.add('hidden');
+  checkoutContent.classList.remove('hidden');
+  renderOrderSummary();
 }
 
-// View order details
-document.getElementById('viewOrder').addEventListener('click', () => {
-  if (window.lastOrder) {
-    alert('Order Details:\n\n' + 
-          'Order ID: ' + window.lastOrder.orderId + '\n' +
-          'Total: ₹' + window.lastOrder.pricing.total.toLocaleString('en-IN') + '\n' +
-          'Status: ' + window.lastOrder.paymentStatus + '\n' +
-          '\nA confirmation email has been sent to your email address.');
+// ---------------------------------------------------------------------
+// Shipping address handling
+// ---------------------------------------------------------------------
+function getShippingAddressFromForm() {
+  return {
+    name: document.getElementById('customerName').value,
+    email: document.getElementById('customerEmail').value,
+    address: document.getElementById('address').value,
+    city: document.getElementById('city').value,
+    state: document.getElementById('state').value,
+    pincode: document.getElementById('pincode').value,
+    phone: document.getElementById('phone').value
+  };
+}
+
+async function handleShippingSubmit(e) {
+  e.preventDefault();
+  const address = getShippingAddressFromForm();
+  const required = ['name', 'email', 'address', 'city', 'state', 'pincode', 'phone'];
+  for (const f of required) {
+    if (!address[f]) {
+      alert('Please fill in all shipping address fields');
+      return;
+    }
   }
-});
+  try {
+    const resp = await fetch(`${CHECKOUT_API_BASE}/session/${USER_ID}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'set_shipping', shippingAddress: address })
+    });
+    const data = await resp.json();
+    if (data.success) {
+      checkoutSession = data.data;
+      renderOrderSummary();
+      alert('Shipping address updated!');
+    } else {
+      alert(data.error || 'Failed to update address');
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Error updating shipping address');
+  }
+}
+
+// ---------------------------------------------------------------------
+// Discount handling (backend first, fallback to local calculation)
+// ---------------------------------------------------------------------
+async function handleApplyDiscount() {
+  const code = discountCodeInput.value.trim().toUpperCase();
+  if (!code) return showDiscountMessage('Enter a coupon code', 'error');
+  try {
+    const resp = await fetch(`${CHECKOUT_API_BASE}/session/${USER_ID}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'apply_discount', discountCode: code })
+    });
+    const data = await resp.json();
+    if (data.success) {
+      appliedDiscount = data.data.discount;
+      checkoutSession = data.data;
+      renderOrderSummary();
+      showDiscountMessage(`Discount applied! Saved ₹${appliedDiscount.toLocaleString()}`, 'success');
+    } else {
+      showDiscountMessage(data.error || 'Invalid coupon', 'error');
+    }
+  } catch (e) {
+    // Fallback to local discount rules
+    applyDiscountLocally(code);
+  }
+}
+
+function applyDiscountLocally(code) {
+  const discounts = {
+    WELCOME10: 0.10,
+    SAVE20: 0.20,
+    FLAT500: 500
+  };
+  const subtotal = (checkoutSession?.subtotal || cart.totalPrice * 83) || 0;
+  if (!discounts[code]) return showDiscountMessage('Invalid coupon', 'error');
+  const val = discounts[code];
+  if (val < 1) {
+    if (code === 'SAVE20' && subtotal < 5000) return showDiscountMessage('Minimum order ₹5,000 required', 'error');
+    appliedDiscount = Math.round(subtotal * val);
+  } else {
+    if (code === 'FLAT500' && subtotal < 3000) return showDiscountMessage('Minimum order ₹3,000 required', 'error');
+    appliedDiscount = Math.min(val, subtotal);
+  }
+  renderOrderSummary();
+  showDiscountMessage(`Discount applied! Saved ₹${appliedDiscount.toLocaleString()}`, 'success');
+}
+
+function showDiscountMessage(msg, type) {
+  discountMessage.textContent = msg;
+  discountMessage.className = `discount-message ${type}`;
+  discountMessage.style.display = 'block';
+  setTimeout(() => (discountMessage.style.display = 'none'), 4000);
+}
+
+// ---------------------------------------------------------------------
+// Order summary rendering (prices are stored in INR)
+// ---------------------------------------------------------------------
+function renderOrderSummary() {
+  if (!checkoutSession) return;
+  // Items list
+  summaryItems.innerHTML = checkoutSession.items.map(item => {
+    const priceInINR = Math.round(item.price * 83);
+    return `<div class="summary-item">
+      <img src="${item.image}" alt="${item.name}" class="summary-item-image" onerror="this.src='https://via.placeholder.com/60x60?text=No+Image'"/>
+      <div class="summary-item-details">
+        <div class="summary-item-name">${item.name}</div>
+        <div class="summary-item-quantity">Qty: ${item.quantity}</div>
+      </div>
+      <div class="summary-item-price">₹${(priceInINR * item.quantity).toLocaleString()}</div>
+    </div>`;
+  }).join('');
+
+  const usdToInr = 83;
+  const subtotalINR = Math.round((checkoutSession.subtotal || (cart?.totalPrice || 0)) * usdToInr);
+  const discountINR = Math.round((checkoutSession.discount || appliedDiscount) * usdToInr);
+  const taxable = subtotalINR - discountINR;
+  const shipping = taxable > 8300 ? 0 : 150;
+  const tax = Math.round(taxable * 0.18);
+  const total = taxable + tax + shipping;
+
+  subtotalEl.textContent = `₹${subtotalINR.toLocaleString()}`;
+  discountEl.textContent = `-₹${discountINR.toLocaleString()}`;
+  shippingEl.textContent = shipping === 0 ? 'FREE' : `₹${shipping.toLocaleString()}`;
+  taxEl.textContent = `₹${tax.toLocaleString()}`;
+  totalEl.textContent = `₹${total.toLocaleString()}`;
+
+  // Store for final order payload
+  checkoutSession.shippingCostINR = shipping;
+  checkoutSession.taxINR = tax;
+  checkoutSession.totalINR = total;
+}
+
+// ---------------------------------------------------------------------
+// Order placement
+// ---------------------------------------------------------------------
+async function processOrder() {
+  const address = getShippingAddressFromForm();
+  const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked').value;
+  const paymentDetails = paymentMethod === 'card' ? {
+    cardNumber: document.getElementById('cardNumber').value,
+    expiry: document.getElementById('expiry').value,
+    cvv: document.getElementById('cvv').value,
+    cardName: document.getElementById('cardName').value
+  } : {};
+
+  placeOrderBtn.disabled = true;
+  placeOrderBtn.textContent = 'Processing...';
+
+  try {
+    const resp = await fetch(`${CHECKOUT_API_BASE}/session/${USER_ID}/checkout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paymentMethod, paymentDetails, customerEmail: address.email })
+    });
+    const data = await resp.json();
+    if (data.success) {
+      await clearCart();
+      checkoutSession = null;
+      showSuccessModal(data.data.order);
+    } else {
+      alert(data.error || 'Failed to place order');
+    }
+  } catch (e) {
+    console.error(e);
+    alert('Error placing order');
+  } finally {
+    placeOrderBtn.disabled = false;
+    placeOrderBtn.textContent = 'Place Order';
+  }
+}
+
+async function clearCart() {
+  try {
+    await fetch(`${API_BASE}/${USER_ID}`, { method: 'DELETE' });
+  } catch (e) {
+    console.error('Clear cart error', e);
+  }
+}
+
+function showSuccessModal(order) {
+  if (!order) return;
+  document.getElementById('orderId').textContent = order.orderId;
+  document.getElementById('orderUserId').textContent = USER_ID;
+  const totalINR = order.pricing?.total || checkoutSession?.totalINR || 0;
+  document.getElementById('orderTotal').textContent = `₹${totalINR.toLocaleString()}`;
+  successModal.classList.remove('hidden');
+  document.getElementById('viewAllOrdersLink').href = `/orders?userId=${USER_ID}`;
+  window.lastOrder = order;
+}
+
