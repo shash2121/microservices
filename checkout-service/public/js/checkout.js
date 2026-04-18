@@ -7,8 +7,7 @@
   // Configuration
   const CONFIG = {
     API_BASE: 'http://localhost:3002/api/cart',
-    CHECKOUT_API: 'http://localhost:3003/api/checkout',
-    CURRENCY_RATE: 83 // USD to INR
+    CHECKOUT_API: 'http://localhost:3003/api/checkout'
   };
 
   // State
@@ -335,40 +334,39 @@
   function renderOrderSummary() {
     if (!state.session) return;
 
-    // Render items
-    elements.summaryItems.innerHTML = state.session.items.map(item => {
-      const priceINR = Math.round(item.price * CONFIG.CURRENCY_RATE);
-      return `
-        <div class="summary-item">
-          <img src="${item.image}" alt="${item.name}" class="summary-item-image" 
-               onerror="this.src='https://via.placeholder.com/60x60?text=No+Image'">
-          <div class="summary-item-details">
-            <div class="summary-item-name">${item.name}</div>
-            <div class="summary-item-quantity">Qty: ${item.quantity}</div>
-          </div>
-          <div class="summary-item-price">₹${(priceINR * item.quantity).toLocaleString()}</div>
-        </div>
-      `;
-    }).join('');
+     // Render items
+     elements.summaryItems.innerHTML = state.session.items.map(item => {
+       return `
+         <div class="summary-item">
+           <img src="${item.image}" alt="${item.name}" class="summary-item-image" 
+                onerror="this.src='https://via.placeholder.com/60x60?text=No+Image'">
+           <div class="summary-item-details">
+             <div class="summary-item-name">${item.name}</div>
+             <div class="summary-item-quantity">Qty: ${item.quantity}</div>
+           </div>
+           <div class="summary-item-price">₹${(item.price * item.quantity).toLocaleString()}</div>
+         </div>
+       `;
+     }).join('');
 
-    // Calculate totals
-    const subtotalINR = Math.round((state.session.subtotal || state.cart.totalPrice) * CONFIG.CURRENCY_RATE);
-    const discountINR = state.discount;
-    const taxable = subtotalINR - discountINR;
-    const shipping = taxable > 8300 ? 0 : 150;
-    const tax = Math.round(taxable * 0.18);
-    const total = taxable + tax + shipping;
+     // Calculate totals
+     const subtotal = state.session.subtotal || state.cart.totalPrice || 0;
+     const discount = state.discount || 0;
+     const taxable = subtotal - discount;
+     const shipping = taxable > 8300 ? 0 : 150;
+     const tax = Math.round(taxable * 0.18);
+     const total = taxable + tax + shipping;
 
-    elements.subtotal.textContent = `₹${subtotalINR.toLocaleString()}`;
-    elements.discount.textContent = `-₹${discountINR.toLocaleString()}`;
-    elements.shipping.textContent = shipping === 0 ? 'FREE' : `₹${shipping.toLocaleString()}`;
-    elements.tax.textContent = `₹${tax.toLocaleString()}`;
-    elements.total.textContent = `₹${total.toLocaleString()}`;
+     elements.subtotal.textContent = `₹${subtotal.toLocaleString()}`;
+     elements.discount.textContent = `-₹${discount.toLocaleString()}`;
+     elements.shipping.textContent = shipping === 0 ? 'FREE' : `₹${shipping.toLocaleString()}`;
+     elements.tax.textContent = `₹${tax.toLocaleString()}`;
+     elements.total.textContent = `₹${total.toLocaleString()}`;
 
-    // Store for order placement
-    state.session.shippingCostINR = shipping;
-    state.session.taxINR = tax;
-    state.session.totalINR = total;
+     // Store for order placement
+     state.session.shippingCostINR = shipping;
+     state.session.taxINR = tax;
+     state.session.totalINR = total;
   }
 
   // Order placement

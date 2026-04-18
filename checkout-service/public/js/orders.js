@@ -67,46 +67,46 @@ async function loadOrders() {
   }
 }
 
-function renderOrders(orders) {
-  hideLoading();
-  noOrders.classList.add('hidden');
-  ordersList.classList.remove('hidden');
+  function renderOrders(orders) {
+    hideLoading();
+    noOrders.classList.add('hidden');
+    ordersList.classList.remove('hidden');
 
-  ordersList.innerHTML = orders.map(order => {
-    const statusClass = (order.status || 'confirmed').toLowerCase();
-    const statusLabel = statusClass.charAt(0).toUpperCase() + statusClass.slice(1);
-    const date = formatDate(order.created_at || order.createdAt);
-    const totalINR = Math.round((order.total || 0) * 83);
-    const items = parseOrderItems(order);
+    ordersList.innerHTML = orders.map(order => {
+      const statusClass = (order.status || 'confirmed').toLowerCase();
+      const statusLabel = statusClass.charAt(0).toUpperCase() + statusClass.slice(1);
+      const date = formatDate(order.created_at || order.createdAt);
+      const total = order.total || 0;
+      const items = parseOrderItems(order);
 
-    return `
-      <div class="order-card" onclick="viewOrder('${order.order_id || order.orderId}')">
-        <div class="order-header">
-          <div>
-            <div class="order-id">${order.order_id || order.orderId}</div>
-            <div class="order-date">${date}</div>
+      return `
+        <div class="order-card" onclick="viewOrder('${order.order_id || order.orderId}')">
+          <div class="order-header">
+            <div>
+              <div class="order-id">${order.order_id || order.orderId}</div>
+              <div class="order-date">${date}</div>
+            </div>
+            <span class="order-status ${statusClass}">${statusLabel}</span>
           </div>
-          <span class="order-status ${statusClass}">${statusLabel}</span>
-        </div>
-        <div class="order-items-preview">
-          ${items.slice(0, 4).map(item => `
-            <img src="${item.image || ''}" alt="${item.name}" class="order-item-thumb" onerror="this.onerror=null;this.src='https://via.placeholder.com/60x60?text=No+Image';">
-          `).join('')}
-          ${items.length > 4 ? `<span class="order-item-thumb" style="display:flex;align-items:center;justify-content:center;background:#ecf0f1;color:#7f8c8d;font-size:12px;">+${items.length - 4}</span>` : ''}
-        </div>
-        <div class="order-footer">
-          <div class="order-total">
-            ₹${totalINR.toLocaleString('en-IN')}
-            <span> · ${items.length} item${items.length !== 1 ? 's' : ''}</span>
+          <div class="order-items-preview">
+            ${items.slice(0, 4).map(item => `
+              <img src="${item.image || ''}" alt="${item.name}" class="order-item-thumb" onerror="this.onerror=null;this.src='https://via.placeholder.com/60x60?text=No+Image';">
+            `).join('')}
+            ${items.length > 4 ? `<span class="order-item-thumb" style="display:flex;align-items:center;justify-content:center;background:#ecf0f1;color:#7f8c8d;font-size:12px;">+${items.length - 4}</span>` : ''}
           </div>
-          <button class="btn btn-primary" onclick="event.stopPropagation(); viewOrder('${order.order_id || order.orderId}')">
-            View Details
-          </button>
+          <div class="order-footer">
+            <div class="order-total">
+              ₹${total.toLocaleString('en-IN')}
+              <span> · ${items.length} item${items.length !== 1 ? 's' : ''}</span>
+            </div>
+            <button class="btn btn-primary" onclick="event.stopPropagation(); viewOrder('${order.order_id || order.orderId}')">
+              View Details
+            </button>
+          </div>
         </div>
-      </div>
-    `;
-  }).join('');
-}
+      `;
+    }).join('');
+  }
 
 function parseOrderItems(order) {
   // If items array is already populated (from the API)
@@ -156,89 +156,88 @@ async function viewOrder(orderId) {
   }
 }
 
-function showOrderDetails(order) {
-  console.log('Showing order details:', order);
-  console.log('Order items:', order.items);
+  function showOrderDetails(order) {
+    console.log('Showing order details:', order);
+    console.log('Order items:', order.items);
 
-  const statusClass = (order.status || 'confirmed').toLowerCase();
-  const statusLabel = statusClass.charAt(0).toUpperCase() + statusClass.slice(1);
-  const date = formatDate(order.created_at || order.createdAt);
-  const items = parseOrderItems(order);
+    const statusClass = (order.status || 'confirmed').toLowerCase();
+    const statusLabel = statusClass.charAt(0).toUpperCase() + statusClass.slice(1);
+    const date = formatDate(order.created_at || order.createdAt);
+    const items = parseOrderItems(order);
 
-  console.log('Parsed items:', items);
+    console.log('Parsed items:', items);
 
-  const subtotalINR = Math.round((order.subtotal || 0) * 83);
-  const discountINR = Math.round((order.discount || 0) * 83);
-  const taxINR = Math.round((order.tax_amount || order.tax || 0) * 83);
-  const shippingINR = Math.round((order.shipping_cost || 0) * 83);
-  const totalINR = Math.round((order.total || 0) * 83);
+    const subtotal = order.subtotal || 0;
+    const discount = order.discount || 0;
+    const tax = order.tax_amount || order.tax || 0;
+    const shipping = order.shipping_cost || 0;
+    const total = order.total || 0;
 
-  // Parse shipping address (stored as JSON string)
-  let shippingAddressText = '';
-  if (order.shipping_address) {
-    try {
-      const addr = typeof order.shipping_address === 'string'
-        ? JSON.parse(order.shipping_address)
-        : order.shipping_address;
-      shippingAddressText = `${addr.name || ''}, ${addr.address || ''}, ${addr.city || ''}, ${addr.state || ''} - ${addr.pincode || ''}`;
-    } catch (e) {
-      shippingAddressText = order.shipping_address;
+    // Parse shipping address (stored as JSON string)
+    let shippingAddressText = '';
+    if (order.shipping_address) {
+      try {
+        const addr = typeof order.shipping_address === 'string'
+          ? JSON.parse(order.shipping_address)
+          : order.shipping_address;
+        shippingAddressText = `${addr.name || ''}, ${addr.address || ''}, ${addr.city || ''}, ${addr.state || ''} - ${addr.pincode || ''}`;
+      } catch (e) {
+        shippingAddressText = order.shipping_address;
+      }
     }
-  }
 
-  modalBody.innerHTML = `
-    <div class="modal-order-info">
-      <p><strong>Order ID:</strong> ${order.order_id || order.orderId}</p>
-      <p><strong>Date:</strong> ${date}</p>
-      <p><strong>Status:</strong> <span class="order-status ${statusClass}">${statusLabel}</span></p>
-      <p><strong>Payment:</strong> ${order.payment_method || 'N/A'} - ${order.payment_status || 'N/A'}</p>
-      ${shippingAddressText ? `<p><strong>Shipping to:</strong> ${shippingAddressText}</p>` : ''}
-    </div>
-    <div class="modal-items">
-      ${items.map(item => {
-        const priceINR = Math.round((item.price || 0) * 83);
-        const itemTotal = priceINR * (item.quantity || 1);
-        return `
-          <div class="modal-item">
-            <img src="${item.image || ''}" alt="${item.name}" onerror="this.onerror=null;this.src='https://via.placeholder.com/50x50?text=No+Image';">
-            <div class="modal-item-info">
-              <div class="modal-item-name">${item.name}</div>
-              <div class="modal-item-qty">Qty: ${item.quantity || 1}</div>
+    modalBody.innerHTML = `
+      <div class="modal-order-info">
+        <p><strong>Order ID:</strong> ${order.order_id || order.orderId}</p>
+        <p><strong>Date:</strong> ${date}</p>
+        <p><strong>Status:</strong> <span class="order-status ${statusClass}">${statusLabel}</span></p>
+        <p><strong>Payment:</strong> ${order.payment_method || 'N/A'} - ${order.payment_status || 'N/A'}</p>
+        ${shippingAddressText ? `<p><strong>Shipping to:</strong> ${shippingAddressText}</p>` : ''}
+      </div>
+      <div class="modal-items">
+        ${items.map(item => {
+          const itemTotal = (item.price || 0) * (item.quantity || 1);
+          return `
+            <div class="modal-item">
+              <img src="${item.image || ''}" alt="${item.name}" onerror="this.onerror=null;this.src='https://via.placeholder.com/50x50?text=No+Image';">
+              <div class="modal-item-info">
+                <div class="modal-item-name">${item.name}</div>
+                <div class="modal-item-qty">Qty: ${item.quantity || 1}</div>
+              </div>
+              <div class="modal-item-price">₹${itemTotal.toLocaleString('en-IN')}</div>
             </div>
-            <div class="modal-item-price">₹${itemTotal.toLocaleString('en-IN')}</div>
-          </div>
-        `;
-      }).join('')}
-    </div>
-    <div class="modal-totals">
-      <div class="summary-row">
-        <span>Subtotal</span>
-        <span>₹${subtotalINR.toLocaleString('en-IN')}</span>
+          `;
+        }).join('')}
       </div>
-      ${discountINR > 0 ? `
-      <div class="summary-row">
-        <span>Discount</span>
-        <span>-₹${discountINR.toLocaleString('en-IN')}</span>
+      <div class="modal-totals">
+        <div class="summary-row">
+          <span>Subtotal</span>
+          <span>₹${subtotal.toLocaleString('en-IN')}</span>
+        </div>
+        ${discount > 0 ? `
+        <div class="summary-row">
+          <span>Discount</span>
+          <span>-₹${discount.toLocaleString('en-IN')}</span>
+        </div>
+        ` : ''}
+        <div class="summary-row">
+          <span>Tax</span>
+          <span>₹${tax.toLocaleString('en-IN')}</span>
+        </div>
+        <div class="summary-row">
+          <span>Shipping</span>
+          <span>${shipping === 0 ? 'FREE' : '₹' + shipping.toLocaleString('en-IN')}</span>
+        </div>
+        <div class="summary-row total">
+          <span>Total</span>
+          <span>₹${total.toLocaleString('en-IN')}</span>
+        </div>
       </div>
-      ` : ''}
-      <div class="summary-row">
-        <span>Tax</span>
-        <span>₹${taxINR.toLocaleString('en-IN')}</span>
-      </div>
-      <div class="summary-row">
-        <span>Shipping</span>
-        <span>${shippingINR === 0 ? 'FREE' : '₹' + shippingINR.toLocaleString('en-IN')}</span>
-      </div>
-      <div class="summary-row total">
-        <span>Total</span>
-        <span>₹${totalINR.toLocaleString('en-IN')}</span>
-      </div>
-    </div>
-  `;
+    `;
 
-  orderModal.classList.remove('hidden');
-  orderModal.style.display = 'flex';
-}
+    orderModal.classList.remove('hidden');
+    orderModal.style.display = 'flex';
+  }
 
 function formatDate(dateStr) {
   if (!dateStr) return 'N/A';
