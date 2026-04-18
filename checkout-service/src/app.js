@@ -43,6 +43,9 @@ app.get('/health', (req, res) => {
 
 // API Routes
 app.use('/api/checkout', checkoutRoutes);
+app.use('/order', (req, res) => {
+  res.sendFile('orders.html', { root: 'public' });
+});
 
 // Static files
 app.use(express.static('public'));

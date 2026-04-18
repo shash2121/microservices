@@ -100,7 +100,7 @@ async function getOrderWithItems(orderId) {
   const itemsQuery = 'SELECT * FROM order_items WHERE order_id = ?';
 
   const [orderRows] = await execute(orderQuery, [orderId]);
-  if (orderRows.length === 0) return null;
+  if (!orderRows || orderRows.length === 0) return null;
 
   const [itemRows] = await execute(itemsQuery, [orderId]);
 

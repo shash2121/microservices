@@ -86,7 +86,13 @@ router.post('/session/:userId', async (req, res) => {
   }
   const session = new CheckoutSession(userId);
   items.forEach(item => {
-    session.addItem({ productId: item.productId, name: item.name, price: item.price, image: item.image }, item.quantity);
+    session.addItem({
+      id: item.productId, // CheckoutSession.addItem expects product.id
+      productId: item.productId,
+      name: item.name,
+      price: item.price,
+      image: item.image
+    }, item.quantity);
   });
   await saveSession(userId, session);
   res.json({ success: true, data: session });
@@ -110,18 +116,48 @@ router.put('/session/:userId', async (req, res) => {
 router.post('/session/:userId/checkout', async (req, res) => {
   const { userId } = req.params;
   const { paymentMethod, paymentDetails, customerEmail } = req.body;
+  
+  console.log('[checkout] Checkout request received for userId:', userId);
+  console.log('[checkout] Payment method:', paymentMethod);
+  console.log('[checkout] Payment details:', paymentDetails);
+  console.log('[checkout] Customer email:', customerEmail);
+  
   const session = await getSession(userId);
-  if (!session || session.items.length === 0) {
-    return res.status(400).json({ success: false, error: 'No session or empty cart' });
+  
+  if (!session) {
+    console.log('[checkout] No session found for userId:', userId);
+    return res.status(400).json({ success: false, error: 'No checkout session found' });
   }
+  
+  if (session.items.length === 0) {
+    console.log('[checkout] Session has no items');
+    return res.status(400).json({ success: false, error: 'Cart is empty' });
+  }
+  
+  if (!paymentMethod) {
+    console.log('[checkout] No payment method provided');
+    return res.status(400).json({ success: false, error: 'Payment method is required' });
+  }
+  
+  // Validate shipping address is present
+  if (!session.shippingAddress || !session.shippingAddress.name || !session.shippingAddress.email || !session.shippingAddress.address) {
+    console.log('[checkout] Shipping address not set');
+    return res.status(400).json({ success: false, error: 'Shipping address is required. Please fill in the shipping form.' });
+  }
+  
   const paymentResult = session.processPayment(paymentMethod, paymentDetails);
-  if (!paymentResult.success) return res.status(400).json({ success: false, error: paymentResult.error });
+  if (!paymentResult.success) {
+    console.log('[checkout] Payment failed:', paymentResult.error);
+    return res.status(400).json({ success: false, error: paymentResult.error });
+  }
+  
   try {
     const order = await session.saveOrder();
     await deleteSession(userId);
+    console.log('[checkout] Order created successfully:', order.orderId);
     res.json({ success: true, data: { order, transactionId: paymentResult.transactionId } });
   } catch (e) {
-    console.error(e);
+    console.error('[checkout] Order creation error:', e);
     res.status(500).json({ success: false, error: 'Failed to create order' });
   }
 });
