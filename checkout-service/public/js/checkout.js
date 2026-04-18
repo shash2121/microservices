@@ -295,7 +295,7 @@
       'FLAT500': 500
     };
 
-    const subtotal = (state.session?.subtotal || state.cart.totalPrice * CONFIG.CURRENCY_RATE) || 0;
+    const subtotal = (state.session?.subtotal || state.cart.totalPrice) || 0;
     const discount = discounts[code];
 
     if (!discount) {

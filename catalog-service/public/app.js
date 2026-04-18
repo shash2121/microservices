@@ -191,8 +191,8 @@ function createProductCard(product) {
   const stockStatus = getStockStatus(product.stock);
   const stars = getStarRating(product.rating);
 
-  // Convert price to INR (1 USD = 83 INR approximately)
-  const priceInINR = Math.round(product.price * 83);
+  // Use price directly in INR
+  const priceInINR = product.price;
 
   card.innerHTML = `
     <img src="${product.image}" alt="${product.name}" class="product-image" onerror="this.onerror=null;this.src='https://via.placeholder.com/300x220?text=No+Image';">
