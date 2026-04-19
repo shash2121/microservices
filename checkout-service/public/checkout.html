@@ -17,6 +17,27 @@
   <main class="main">
     <div class="container">
       <h1 class="page-title">Checkout</h1>
+      
+      <!-- User Information Display -->
+      <div class="user-info-section">
+        <div class="user-info-card">
+          <h3>Current User</h3>
+          <div class="user-details">
+            <div class="user-detail">
+              <span class="label">User ID:</span>
+              <span class="value" id="displayUserId">Loading...</span>
+            </div>
+            <div class="user-detail">
+              <span class="label">Name:</span>
+              <span class="value" id="displayUserName">Not provided</span>
+            </div>
+            <div class="user-detail">
+              <span class="label">Email:</span>
+              <span class="value" id="displayUserEmail">Not provided</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div id="loading" class="loading">
         <div class="spinner"></div>

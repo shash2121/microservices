@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const { testConnection } = require('./config/database');
 const { cache } = require('./config/redis');
+const logger = require('./logger');
 
 const checkoutRoutes = require('./routes/checkout');
 
@@ -12,9 +13,9 @@ const PORT = process.env.PORT || 3003;
 async function connectRedis() {
   try {
     await cache.connect();
-    console.log('✅ Redis connected');
+    logger.info('Redis connected');
   } catch (err) {
-    console.warn('⚠️ Redis connection failed, continuing without cache:', err.message);
+    logger.warn('Redis connection failed, continuing without cache', { error: err.message });
   }
 }
 
@@ -28,7 +29,11 @@ app.use(express.json());
 
 // Debug middleware
 app.use((req, res, next) => {
-  console.log(`${req.method} ${req.path} from ${req.ip}`);
+  logger.info(`${req.method} ${req.path} from ${req.ip}`, {
+    method: req.method,
+    path: req.path,
+    ip: req.ip
+  });
   next();
 });
 
@@ -62,6 +67,11 @@ app.get('/orders', (req, res) => {
 
 // 404 handler
 app.use((req, res) => {
+  logger.warn('Route not found', {
+    method: req.method,
+    path: req.path,
+    ip: req.ip
+  });
   res.status(404).json({
     error: 'Not Found',
     message: `Route ${req.method} ${req.path} not found`
@@ -70,7 +80,12 @@ app.use((req, res) => {
 
 // Error handler
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  logger.error('Internal Server Error', {
+    error: err.message,
+    stack: err.stack,
+    method: req.method,
+    path: req.path
+  });
   res.status(500).json({
     error: 'Internal Server Error',
     message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
@@ -80,15 +95,18 @@ app.use((err, req, res, next) => {
 // Start server
 async function startServer() {
   // Test database connection
+  logger.info('Testing database connection');
   await testConnection();
   
   // Connect to Redis
   await connectRedis();
   
   app.listen(PORT, () => {
-    console.log(`Checkout Service running on port ${PORT}`);
-    console.log(`Health check: http://localhost:${PORT}/health`);
-    console.log(`API endpoints: http://localhost:${PORT}/api/checkout`);
+    logger.info(`Checkout Service running on port ${PORT}`, {
+      port: PORT,
+      healthCheck: `http://localhost:${PORT}/health`,
+      apiEndpoints: `http://localhost:${PORT}/api/checkout`
+    });
   });
 }
 
